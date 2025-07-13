@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+aiogram
+python-telegram-bot
+beautifulsoup4
+requests
+geopy
