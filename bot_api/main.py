@@ -8,8 +8,11 @@ from dotenv import load_dotenv
 from aiogram import F
 import requests
 
+from backend.session import get_user_by_telegram_id, create_user, refresh_user_last_message, get_user_last_message
+from backend.models import User
 
-# Чтение переменных окружения
+
+
 load_dotenv()
 GEOCODER_URL = os.getenv('GEOCODER_URL')
 APIKEY_GEOCODER = os.getenv('APIKEY_GEOCODER')
@@ -32,6 +35,9 @@ with open('bot_api/messages.txt', 'r', encoding='utf-8') as f:
         messages[key] = value
 
 
+
+
+# АССИНХРОННЫЕ ФУНКЦИИ
 async def on_startup(_):
     logging.info('Бот вышел в онлайн')
 
@@ -39,41 +45,83 @@ async def on_shutdown(_):
     logging.info('Бот вышел в офлайн')
 
 
+
+
+
+
+
+
 @dp.message(Command("start"))
 async def send_welcome(message: types.Message):
     print("Команда /start получена!")
-    try:
-        # Отправка сообщения
-        await message.answer(
-            "Отправьте свои координаты",
-            reply_markup=types.ReplyKeyboardMarkup(
-                keyboard=[[types.KeyboardButton(text="Отправить координаты", request_location=True)]],
-                resize_keyboard=True,
-                one_time_keyboard=True
-            )
+    # Верификация пользователя
+    user = await get_user_by_telegram_id(message.from_user.id)
+    print('Верификация пользователя', message.from_user.username)
+    if user is None:
+
+        print('Пользователь не найден, создаем нового')
+        user = await create_user(message.from_user.username, message.from_user.id)
+    #refresh_user_last_message(message.from_user.id, message.text)
+
+    await message.answer(
+        "Выберите действие",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=[
+                [types.KeyboardButton(text="Составить маршрут пробежки")],
+                [types.KeyboardButton(text="Создать и позвать на пробежку")],
+                [types.KeyboardButton(text="Присоединиться к пробежке")]
+            ],
+            resize_keyboard=True,
+            one_time_keyboard=True
         )
-    except Exception as e:
-        print(f"Ошибка: {e}")
+    )
+
+
+
+@dp.message(lambda message: message.text in ["Составить маршрут пробежки", "Создать и позвать на пробежку", "Присоединиться к пробежке"])
+async def choose_action(message: types.Message):
+    action = message.text
+    print('Шаг 1: Выбрано действие', action)
+    await message.answer(
+        "Отправьте свои координаты",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=[[types.KeyboardButton(text="Отправить координаты", request_location=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+    )
+    await refresh_user_last_message(message.from_user.id, message.text)
 
 
 @dp.message(F.location)
 async def get_coordinates(message: types.Message):
-    print('Шаг 2: Получены координаты')
-    try:
-        location = message.location
-        lat, lon = location.longitude, location.latitude
-        print(lat, lon)
-        params = {
-            'format': 'json',
-            'apikey': APIKEY_GEOCODER,
-            'geocode': f'{lat},{lon}'
-        }
-        response = requests.get(GEOCODER_URL, params=params)
-        data = response.json()
-        place = data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty']['GeocoderMetaData']['Address']['formatted']
-        await message.answer(f"Вы находитесь в {place}, Верно?", reply_markup=types.ReplyKeyboardRemove())
-    except Exception as e:
-        print(f"Ошибка: {e}")
+    print('Шаг 2: Получение координат')
+    good_action = ['Составить маршрут пробежки', 'Создать и позвать на пробежку', 'Присоединиться к пробежке']
+    action = await get_user_last_message(message.from_user.id)
+    if action in good_action:
+        try:
+            location = message.location
+            lat, lon = location.longitude, location.latitude
+            params = {
+                'format': 'json',
+                'apikey': APIKEY_GEOCODER,
+                'geocode': f'{lat},{lon}'
+            }
+            response = requests.get(GEOCODER_URL, params=params)
+            data = response.json()
+            place = data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty']['GeocoderMetaData']['Address']['formatted']
+            await message.answer(f"Ваше местоположение {place}, Верно?")
+
+            print(action)
+            if action == good_action[0]:
+                await message.answer("Введите расстояние пробежки в км")
+            elif action == good_action[1]:
+                pass
+            elif action == good_action[2]:
+                pass
+        except Exception as e:
+            print(f"Ошибка: {e}")
+
 
 
 if __name__ == '__main__':

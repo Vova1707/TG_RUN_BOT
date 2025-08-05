@@ -1,8 +1,10 @@
 fastapi
 uvicorn
 aiogram
+psycopg2
 python-telegram-bot
 beautifulsoup4
 requests
+sqlalchemy
 geopy
 dotenv
