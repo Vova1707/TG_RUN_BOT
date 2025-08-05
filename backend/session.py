@@ -12,7 +12,7 @@ engine = create_engine(
     f":{os.getenv('POSTGRES_PASSWORD')}@localhost:"
     f"{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DATABASE')}")
 
-# Создание таблицы users
+# Создание таблиц
 #Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 
@@ -50,3 +50,14 @@ async def refresh_user_last_message(telegram_id, last_message):
 async def get_user_last_message(telegram_id):
     user = await get_user_by_telegram_id(telegram_id)
     return user.last_message.strip()
+
+
+async def set_start_coord_for_user(telegram_id, lat, lon):
+    user = await get_user_by_telegram_id(telegram_id)
+    user.start_coord = f"{lat},{lon}"
+    session.commit()
+
+
+async def get_start_coord_for_user(telegram_id):
+    user = await get_user_by_telegram_id(telegram_id)
+    return list(map(float, user.start_coord.split(',')))

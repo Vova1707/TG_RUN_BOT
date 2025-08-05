@@ -7,9 +7,8 @@ import os
 from dotenv import load_dotenv
 from aiogram import F
 import requests
-
-from backend.session import get_user_by_telegram_id, create_user, refresh_user_last_message, get_user_last_message
-from backend.models import User
+from bot_api.set_path import set_path
+from backend.session import get_user_by_telegram_id, create_user, refresh_user_last_message, get_user_last_message, set_start_coord_for_user, get_start_coord_for_user
 
 
 
@@ -102,6 +101,7 @@ async def get_coordinates(message: types.Message):
         try:
             location = message.location
             lat, lon = location.longitude, location.latitude
+            '''
             params = {
                 'format': 'json',
                 'apikey': APIKEY_GEOCODER,
@@ -109,16 +109,49 @@ async def get_coordinates(message: types.Message):
             }
             response = requests.get(GEOCODER_URL, params=params)
             data = response.json()
+            
             place = data['response']['GeoObjectCollection']['featureMember'][0]['GeoObject']['metaDataProperty']['GeocoderMetaData']['Address']['formatted']
-            await message.answer(f"Ваше местоположение {place}, Верно?")
+            await message.answer(f"Ваше местоположение {place}")
+            '''
+            await set_start_coord_for_user(message.from_user.id, lat, lon)
 
-            print(action)
-            if action == good_action[0]:
-                await message.answer("Введите расстояние пробежки в км")
+            if action == good_action[0] or action:
+                await message.answer(
+                    "Всё верно?",
+                    reply_markup=types.ReplyKeyboardMarkup(
+                    keyboard=[
+                            [types.KeyboardButton(text="Да. Сейчас напишу расстояние")],
+                            [types.KeyboardButton(text="Нет. Отправить координаты заново", request_location=True)]
+                    ],
+                    resize_keyboard=True,
+                    one_time_keyboard=True
+                    )
+                )
             elif action == good_action[1]:
                 pass
             elif action == good_action[2]:
                 pass
+        except Exception as e:
+            print(f"Ошибка: {e}")
+
+
+@dp.message(lambda message: message.text == "Да. Сейчас напишу расстояние")
+async def confirm_distance(message: types.Message):
+    await refresh_user_last_message(message.from_user.id, message.text)
+    await message.answer("Введите расстояние пробежки в км", reply_markup=types.ReplyKeyboardRemove())
+
+
+@dp.message(lambda message: message.text.isdigit())
+async def get_distance(message: types.Message):
+    print('Шаг 3: Получение расстояния пробежки')
+    action = await get_user_last_message(message.from_user.id)
+    print(action)
+    if action == 'Да. Сейчас напишу расстояние':
+        try:
+            distance = int(message.text)
+            await message.answer(f"Вы указали расстояние пробежки: +-{distance} км. Ждите маршрута...")
+            coord = await get_start_coord_for_user(message.from_user.id)
+            await message.answer(f"ссылка: {set_path(coord, distance * 1000)}")
         except Exception as e:
             print(f"Ошибка: {e}")
 

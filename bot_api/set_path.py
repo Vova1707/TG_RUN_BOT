@@ -1,28 +1,50 @@
 import requests
 import polyline
+import random
+import math
+from geopy.distance import geodesic
 
-# Координаты (Москва, Кремль -> Красная площадь)
-start_lon, start_lat = 37.617635, 55.752023
-end_lon, end_lat = 37.621900, 55.753700
+def set_path(start_coord, distance):
+    start_lon, start_lat = start_coord
 
-# 1. Получаем маршрут от OSRM
-osrm_url = f"http://router.project-osrm.org/route/v1/foot/{start_lon},{start_lat};{end_lon},{end_lat}?overview=full"
-route_data = requests.get(osrm_url).json()
+    # Генерируем рандомную точку на карте
+    while True:
+        random_angle = random.uniform(0, 2 * math.pi)
+        random_distance = random.uniform(0, distance)
+        end_lon = start_lon + random_distance * math.cos(random_angle) / geodesic((start_lat, start_lon), (start_lat, start_lon + 1)).meters
+        end_lat = start_lat + random_distance * math.sin(random_angle) / geodesic((start_lat, start_lon), (start_lat + 1, start_lon)).meters
 
-# 2. Декодируем полилинию
-coords = polyline.decode(route_data["routes"][0]["geometry"], 6)
+        # Проверяем, что координаты находятся в пределах допустимых значений
+        if not (-180 <= end_lon <= 180) or not (-90 <= end_lat <= 90):
+            continue
 
-# 3. Формируем ссылку на интерактивные Яндекс.Карты
-yandex_maps_url = (
-    f"https://yandex.ru/maps/?mode=routes"
-    f"&rtext={start_lat}%2C{start_lon}~{end_lat}%2C{end_lon}"
-    f"&rtt=pd"  # пешеходный маршрут
-    f"&ruri=~"  # добавляем все промежуточные точки
-)
+        # Проверяем расстояние между точками
+        route_distance = geodesic((start_lat, start_lon), (end_lat, end_lon)).meters
+        if route_distance <= distance + 500 and route_distance >= distance - 500:
+            break
 
-# Добавляем все точки маршрута (кодируем в polyline)
-for lat, lon in coords[::5]:  # берем каждую 5-ю точку
-    yandex_maps_url += f"~{lat}%2C{lon}"
+    # Получаем маршрут от OSRM
+    osrm_url = f"http://router.project-osrm.org/route/v1/foot/{start_lon},{start_lat};{end_lon},{end_lat}?overview=full"
+    route_data = requests.get(osrm_url).json()
 
-print("Ссылка на интерактивный маршрут в Яндекс.Картах:")
-print(yandex_maps_url)
+    # Проверяем наличие ключа 'routes' в словаре route_data
+    if 'routes' not in route_data:
+        print("Ошибка: ключ 'routes' не найден в ответе от OSRM")
+        return None
+
+    # Декодируем полилинию
+    coords = polyline.decode(route_data["routes"][0]["geometry"], 6)
+
+    # Формируем ссылку на интерактивные Яндекс.Карты
+    yandex_maps_url = (
+        f"https://yandex.ru/maps/?mode=routes"
+        f"&rtext={start_lat}%2C{start_lon}~{end_lat}%2C{end_lon}"
+        f"&rtt=pd"  # пешеходный маршрут
+        f"&ruri=~"  # добавляем все промежуточные точки
+    )
+
+    # Добавляем все точки маршрута (кодируем в polyline)
+    for lat, lon in coords[::5]:  # берем каждую 5-ю точку
+        yandex_maps_url += f"~{lat}%2C{lon}"
+
+    return yandex_maps_url

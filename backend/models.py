@@ -12,6 +12,7 @@ class User(Base):
     nickname = Column(String, nullable=False)
     telegram_id = Column(Integer, nullable=False)
     last_message = Column(String, nullable=False, default=None)
+    start_coord = Column(String, nullable=True) 
     tokens = relationship("Token", backref="user")
 
     def __repr__(self):
