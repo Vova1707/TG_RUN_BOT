@@ -3,6 +3,8 @@ import polyline
 import random
 import math
 from geopy.distance import geodesic
+from bot_api.test import get_route_distance
+
 
 def set_path(start_coord, distance):
     start_lon, start_lat = start_coord
@@ -47,4 +49,16 @@ def set_path(start_coord, distance):
     for lat, lon in coords[::5]:  # берем каждую 5-ю точку
         yandex_maps_url += f"~{lat}%2C{lon}"
 
-    return yandex_maps_url
+    s = get_route_distance(yandex_maps_url)
+    if s != None and abs(s * 1000 - distance) <= 500:
+        print(s * 1000, distance, abs(s * 1000 - distance))
+        print(yandex_maps_url)
+        return yandex_maps_url
+    try:
+        print(s * 1000, distance, abs(s * 1000 - distance))
+    except Exception as e:
+        print(e)
+    return None
+
+
+

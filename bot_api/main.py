@@ -6,7 +6,6 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from aiogram import F
-import requests
 from bot_api.set_path import set_path
 from backend.session import get_user_by_telegram_id, create_user, refresh_user_last_message, get_user_last_message, set_start_coord_for_user, get_start_coord_for_user
 
@@ -101,6 +100,7 @@ async def get_coordinates(message: types.Message):
         try:
             location = message.location
             lat, lon = location.longitude, location.latitude
+            # Этот код - геокодер. Ограниченное количество использования
             '''
             params = {
                 'format': 'json',
@@ -145,13 +145,15 @@ async def confirm_distance(message: types.Message):
 async def get_distance(message: types.Message):
     print('Шаг 3: Получение расстояния пробежки')
     action = await get_user_last_message(message.from_user.id)
-    print(action)
     if action == 'Да. Сейчас напишу расстояние':
         try:
             distance = int(message.text)
             await message.answer(f"Вы указали расстояние пробежки: +-{distance} км. Ждите маршрута...")
             coord = await get_start_coord_for_user(message.from_user.id)
-            await message.answer(f"ссылка: {set_path(coord, distance * 1000)}")
+            link = None
+            while link is None:
+                link = set_path(coord, distance * 1000)
+            await message.answer(f"ссылка: \n{link}")
         except Exception as e:
             print(f"Ошибка: {e}")
 
