@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -33,13 +33,14 @@ class Jogging(Base):
     __tablename__ = 'jogging'
 
     id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    distance = Column(Integer, nullable=False)
+    description= Column(String, nullable=False)
+    distance = Column(Integer, nullable=False, default=0)
     complete = Column(Boolean, nullable=False, default=False)
     image = Column(String, nullable=True)
     start_coord = Column(String, nullable=True)  # координаты начала пробежки
-    time_start = Column(DateTime, nullable=True)  # время начала пробежки
+    date_start = Column(Date, nullable=True)
+    time_start = Column(Time, nullable=True)  # время начала пробежки
     user_id = Column(Integer, ForeignKey('users.id'))
 
     def __repr__(self):
-        return f"Jogging(id={self.id}, title='{self.title}', distance={self.distance}, complete={self.complete}, image={self.image})"
+        return f"Jogging(id={self.id}, description='{self.description}', distance={self.distance}, complete={self.complete}, image={self.image}), date={self.date_start}, time={self.time_start})"

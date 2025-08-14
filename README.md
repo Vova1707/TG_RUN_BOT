@@ -82,7 +82,7 @@ alembic upgrade head
 ### Запуск сервера
 
 ```bash
-python -m bot_api.main
+python main.py
 ```
 
 ## Тестирование 🧑‍🔧
