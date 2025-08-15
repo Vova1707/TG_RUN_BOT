@@ -6,6 +6,7 @@ from sqlalchemy import func
 from backend.models import Base, User, Jogging
 from sqlalchemy import Float
 from datetime import date, time
+from sqlalchemy import cast, String
 
 # Подключение к базе данных
 load_dotenv()
@@ -30,7 +31,7 @@ except Exception as e:
     print(e)
 
 
-# User - поьзователь
+# User - пользователь
 async def get_user_by_telegram_id(telegram_id):
     return session.query(User).filter_by(telegram_id=telegram_id).first()
 
@@ -77,11 +78,12 @@ async def get_start_coord_for_user(telegram_id):
 
 
 # Jogging - пробежка
-async def create_jogging(description, start_coord, user_id, photo=None):
+async def create_jogging(user_id, start_coord, description, date_start=None, time_start=None, photo=None):
     try:
-        jogging = Jogging(description=description, start_coord=start_coord, user_id=user_id, image=photo)
+        jogging = Jogging(description=description, start_coord=start_coord, user_id=user_id, date_start=date_start, time_start=time_start, image=photo)
         session.add(jogging)
         session.commit()
+        return jogging
     except Exception as e:
         print(e)
 
@@ -125,9 +127,16 @@ async def set_jogging_date_and_time(jogging_id, date=None, time=None):
         session.commit()
 
 
-async def get_info_for_jogging(jogging: Jogging):
-    longitude, latitude = jogging.start_coord.split(',')
-    user_nicname = '@' + session.query(User).filter(User.id == jogging.user_id).first().nickname
-    location_link = f'https://yandex.ru/maps/?ll={longitude},{latitude}&z=12&mode=whatshere&whatshere=1&source=serp'
-    text = '''Создатель: {}\nОписание: {}\nМестоположение: {}\nЗапланировано на: {}'''.format(user_nicname, jogging.description, location_link, jogging.time_start)
-    return jogging.image, text
+async def get_info_for_jogging(jogging: Jogging, only_text=False):
+    try:
+        print(jogging.start_coord)
+        longitude, latitude = jogging.start_coord.split(',')
+        user_nicname = '@' + session.query(User).filter(User.id == jogging.user_id).first().nickname
+        location_link = f'https://yandex.ru/maps/?ll={longitude},{latitude}&z=12&mode=whatshere&whatshere=1&source=serp'
+        date_time = jogging.date_start.strftime('%d.%m.%Y') + ' ' + jogging.time_start.strftime('%H:%M')
+        text = f'''Создатель: {user_nicname}\nОписание: {jogging.description}\nТочка сбора: [ссылка]({location_link})\nЗапланировано на: {date_time}'''
+        if jogging.image is None or only_text:
+            return text
+        return jogging.image, text
+    except Exception as e:
+        print(e, 12345)

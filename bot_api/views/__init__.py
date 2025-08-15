@@ -1,1 +1,0 @@
-from defaut import send_welcome
