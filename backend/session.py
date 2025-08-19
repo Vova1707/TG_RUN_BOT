@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 from sqlalchemy import func
-from backend.models import Base, User, Jogging
+from backend.models import Base, User, Jogging, OtherUserJogging
 from sqlalchemy import Float
 from datetime import date, time
 from sqlalchemy import cast, String
@@ -32,17 +32,27 @@ except Exception as e:
 
 
 # User - пользователь
-async def get_user_by_telegram_id(telegram_id):
+async def get_user_by_id(user_id) -> User:
+    return session.query(User).filter_by(id=user_id).first()
+
+
+async def get_user_by_telegram_id(telegram_id) -> User:
     return session.query(User).filter_by(telegram_id=telegram_id).first()
+
 
 async def create_user(nickname, telegram_id):
     try:
-        user = User(nickname=nickname, telegram_id=telegram_id, last_message='/start')
+        user = User(
+            nickname=nickname,
+            telegram_id=telegram_id, 
+            last_message='/start',
+            )
         session.add(user)
         session.commit()
         return user
     except Exception as e:
         print(e)
+
 
 async def refresh_user_last_message(telegram_id, last_message):
     user = await get_user_by_telegram_id(telegram_id)
@@ -73,8 +83,11 @@ async def set_start_coord_for_user(telegram_id, lat, lon):
 
 
 async def get_start_coord_for_user(telegram_id):
-    user = await get_user_by_telegram_id(telegram_id)
-    return list(map(float, user.start_coord.split(',')))
+    try:
+        user = await get_user_by_telegram_id(telegram_id)
+        return list(map(float, user.start_coord.split(',')))
+    except Exception as e:
+        return None
 
 
 # Jogging - пробежка
@@ -106,15 +119,30 @@ async def set_photo_for_jogging(jogging_id, photo):
         print(e)
 
 
-async def search_near_jogging(user_coord):
+async def search_near_jogging(telegram_id):
+    user_coord = await get_start_coord_for_user(telegram_id)
+    user_id = await get_user_id(telegram_id)
     try:
-        joggings = session.query(Jogging).filter(Jogging.complete == False).filter(
-            (func.abs(func.split_part(Jogging.start_coord, ',', 1).cast(Float) - user_coord[0]) < 0.1),
-            (func.abs(func.split_part(Jogging.start_coord, ',', 2).cast(Float) - user_coord[1]) < 0.1),
+        joggings = session.query(Jogging).filter(
+            Jogging.complete == False,
+            Jogging.user_id != user_id,
+            ).order_by(
+            func.abs(func.split_part(Jogging.start_coord, ',', 1).cast(Float) - user_coord[0]) +
+            func.abs(func.split_part(Jogging.start_coord, ',', 2).cast(Float) - user_coord[1])
         ).all()
-        return joggings
+        sd = []
+        if joggings is not None:
+            for jogging in joggings:
+                otheruserjoggig = session.query(OtherUserJogging).filter(OtherUserJogging.user_id == user_id, OtherUserJogging.jogging_id == jogging.id).first()
+                if otheruserjoggig is None:
+                    sd.append(jogging)
+
+        return sd
     except Exception as e:
-        print(e)
+        print(e, 12345)
+        return []
+
+
 
 
 async def set_jogging_date_and_time(jogging_id, date=None, time=None):
@@ -127,16 +155,33 @@ async def set_jogging_date_and_time(jogging_id, date=None, time=None):
         session.commit()
 
 
+
 async def get_info_for_jogging(jogging: Jogging, only_text=False):
     try:
         print(jogging.start_coord)
         longitude, latitude = jogging.start_coord.split(',')
-        user_nicname = '@' + session.query(User).filter(User.id == jogging.user_id).first().nickname
+        user_nicname = session.query(User).filter(User.id == jogging.user_id).first().nickname
         location_link = f'https://yandex.ru/maps/?ll={longitude},{latitude}&z=12&mode=whatshere&whatshere=1&source=serp'
-        date_time = jogging.date_start.strftime('%d.%m.%Y') + ' ' + jogging.time_start.strftime('%H:%M')
-        text = f'''Создатель: {user_nicname}\nОписание: {jogging.description}\nТочка сбора: [ссылка]({location_link})\nЗапланировано на: {date_time}'''
+        date_time = jogging.date_start.strftime('%d.%m.%Y') + ' в ' + jogging.time_start.strftime('%H:%M')
+        text = f'''Создатель: {user_nicname}\n{jogging.description}\nТочка сбора: [ссылка]({location_link})\nЗапланировано на: {date_time}'''
         if jogging.image is None or only_text:
             return text
         return jogging.image, text
     except Exception as e:
-        print(e, 12345)
+        print(e)
+
+
+async def join_jogging(user_id, jogging_id, like=False):
+    other_user_jogging = OtherUserJogging(user_id=user_id, jogging_id=jogging_id, like=like)
+    session.add(other_user_jogging)
+    session.commit()
+
+
+async def delete_all_other_user_joggings(user_id):
+    session.query(OtherUserJogging).filter(OtherUserJogging.user_id == user_id).delete()
+    session.commit()
+
+
+async def get_jogging_creator(jogging_id):
+    jogging = session.query(Jogging).filter(Jogging.id == jogging_id).first()
+    return jogging.user_id

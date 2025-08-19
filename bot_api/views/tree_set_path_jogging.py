@@ -16,7 +16,7 @@ from aiogram.filters.callback_data import CallbackQuery
 from datetime import date, time
 from bot_api.state import User
 from aiogram.fsm.context import FSMContext
-
+from backend.validators import check_distance_km
 
 set_path_jogging_router = Router()
 
@@ -24,24 +24,44 @@ set_path_jogging_router = Router()
 @set_path_jogging_router.message(User.PathJoggingState.set_distance)
 async def get_distance(message: types.Message, state: FSMContext):
     print('Шаг 3: Получение расстояния пробежки')
-    state.update_data(set_distance=message.text)
+    distance = message.text.replace(',', '.')
+    chc = check_distance_km(message.text)
+    if  chc != True:
+        await message.answer(chc)
+        return
+    state.update_data(set_distance=distance)
     try:
-        distance = int(message.text)
-        await message.answer(f"Вы указали расстояние пробежки: {distance} км +- 500 м. Ждите маршрута...")
+        distance = float(message.text)
+        await message.answer(f"Вы указали расстояние пробежки: {distance} км +- 500 м. Ждите маршрут...")
         coord = await backend.session.get_start_coord_for_user(message.from_user.id)
         link = None
-        while link is None:
+        count = 0
+        while link is None and count < 50:
             link = set_path(coord, distance * 1000)
-        await message.answer(
-            f"ссылка: \n{link}",
-                reply_markup=types.ReplyKeyboardMarkup(
-                    keyboard=[
-                        [types.KeyboardButton(text="На главную")],
-                        ],
-                    resize_keyboard=True,
-                    one_time_keyboard=True
+            count += 1
+        if link is not None:
+            await message.answer(
+                f"вот ваша cсылка на [маршрут]({link})",
+                parse_mode='Markdown',
+                    reply_markup=types.InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [types.InlineKeyboardButton(text="На главную", callback_data='main_menu')],
+                            ],
+                        resize_keyboard=True,
+                        one_time_keyboard=True
+                )
             )
-        )
-        await state.set_state(User.over)
+            await state.set_state(User.over)
+        else:
+            await message.answer("Маршрут не найден. Попробуйте еще раз.",
+                                 reply_markup=types.InlineKeyboardMarkup(
+                                     inline_keyboard=[
+                                         [types.InlineKeyboardButton(text="Назад", callback_data='back')],
+                                         ],
+                                     resize_keyboard=True,
+                                     one_time_keyboard=True
+                                 )
+                                 )
+            await state.set_state(User.confirm_coordinates)
     except Exception as e:
         print(f"Ошибка: {e}")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time, BigInteger
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -10,7 +10,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     nickname = Column(String, nullable=False)
-    telegram_id = Column(Integer, nullable=False)
+    telegram_id = Column(BigInteger, nullable=False)
     last_message = Column(String, nullable=False, default=None)
     start_coord = Column(String, nullable=True) 
     tokens = relationship("Token", backref="user")
@@ -44,3 +44,16 @@ class Jogging(Base):
 
     def __repr__(self):
         return f"Jogging(id={self.id}, description='{self.description}', distance={self.distance}, complete={self.complete}, image={self.image}), date={self.date_start}, time={self.time_start})"
+    
+
+
+class OtherUserJogging(Base):
+    __tablename__ = 'user_jogging'
+
+    id = Column(Integer, primary_key=True)
+    jogging_id = Column(Integer, ForeignKey('jogging.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
+    like = Column(Boolean, nullable=False, default=False)
+
+    def __repr__(self):
+        return f"UserJogging(id={self.id}, jogging_id={self.jogging_id}, user_id={self.user_id})"
